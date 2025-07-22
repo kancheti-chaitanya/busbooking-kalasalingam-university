@@ -1,0 +1,47 @@
+<!-- templates/seat_selection.html -->
+{% extends "base.html" %}
+{% block content %}
+<div class="container mt-5">
+    <h3>Select Your Seat</h3>
+    <form method="POST" action="{{ url_for('confirm_booking', bus_id=bus.id) }}">
+        <div class="seat-map d-flex flex-wrap" style="width: 240px;">
+            {% for row in range(1, 5) %}
+                {% for col in range(1, 5) %}
+                    {% set seat_num = ((row-1)*4 + col) %}
+                    <label class="seat m-1">
+                        <input type="checkbox" name="seats" value="{{ seat_num }}" 
+                            {% if seat_num in booked_seats %}disabled{% endif %}>
+                        <div class="seat-box {% if seat_num in booked_seats %}booked{% endif %}">
+                            {{ seat_num }}
+                        </div>
+                    </label>
+                {% endfor %}
+                <div class="w-100"></div>
+            {% endfor %}
+        </div>
+        <button type="submit" class="btn btn-success mt-3">Confirm Booking</button>
+    </form>
+</div>
+
+<style>
+    .seat-box {
+        width: 40px;
+        height: 40px;
+        line-height: 40px;
+        text-align: center;
+        border: 1px solid #333;
+        border-radius: 5px;
+    }
+    .seat-box.booked {
+        background-color: #f44336;
+        color: white;
+    }
+    .seat input[type="checkbox"] {
+        display: none;
+    }
+    .seat input[type="checkbox"]:checked + .seat-box {
+        background-color: #4CAF50;
+        color: white;
+    }
+</style>
+{% endblock %}

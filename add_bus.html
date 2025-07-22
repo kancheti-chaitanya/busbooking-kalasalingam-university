@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Add Bus{% endblock %}
+{% block content %}
+<h2>Add Bus</h2>
+<form method="POST">
+  <div class="mb-3">
+    <label for="route" class="form-label">Route</label>
+    <input type="text" class="form-control" id="route" name="route" required>
+  </div>
+  <div class="mb-3">
+    <label for="seats_total" class="form-label">Total Seats</label>
+    <input type="number" class="form-control" id="seats_total" name="seats_total" required>
+  </div>
+  <div class="mb-3">
+    <label for="driver_name" class="form-label">Driver Name</label>
+    <input type="text" class="form-control" id="driver_name" name="driver_name" required>
+  </div>
+  <div class="mb-3">
+    <label for="driver_phone" class="form-label">Driver Phone</label>
+    <input type="text" class="form-control" id="driver_phone" name="driver_phone" required>
+  </div>
+  <div class="mb-3">
+    <label for="timing" class="form-label">Timing</label>
+    <input type="text" class="form-control" id="timing" name="timing" required>
+  </div>
+  <div class="mb-3">
+    <label for="latitude" class="form-label">Latitude (for live tracking)</label>
+    <input type="number" step="any" class="form-control" id="latitude" name="latitude">
+  </div>
+  <div class="mb-3">
+    <label for="longitude" class="form-label">Longitude (for live tracking)</label>
+    <input type="number" step="any" class="form-control" id="longitude" name="longitude">
+  </div>
+  <button type="submit" class="btn btn-primary">Add Bus</button>
+</form>
+{% endblock %}

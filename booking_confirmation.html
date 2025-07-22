@@ -1,0 +1,194 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container">
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card shadow-sm">
+                <div class="card-header bg-success text-white">
+                    <h3 class="mb-0"><i class="fas fa-check-circle mr-2"></i> Booking Confirmed</h3>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h4>Booking Details</h4>
+                            <table class="table table-bordered">
+                                <tr>
+                                    <th>Bus Route</th>
+                                    <td>{{ booking.bus.route }}</td>
+                                </tr>
+                                <tr>
+                                    <th>Seat Number</th>
+                                    <td><span class="badge badge-primary">{{ booking.seat_number }}</span></td>
+                                </tr>
+                                <tr>
+                                    <th>Driver</th>
+                                    <td>{{ booking.bus.driver_name }}</td>
+                                </tr>
+                                <tr>
+                                    <th>Driver Phone</th>
+                                    <td>{{ booking.bus.driver_phone }}</td>
+                                </tr>
+                                <tr>
+                                    <th>Timing</th>
+                                    <td>{{ booking.bus.timing }}</td>
+                                </tr>
+                                <tr>
+                                    <th>Booking Time</th>
+                                    <td>{{ booking.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                                </tr>
+                                <tr>
+                                    <th>Expires</th>
+                                    <td>{{ booking.expires_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                                </tr>
+                            </table>
+                        </div>
+                        <div class="col-md-6">
+                            <h4>Route Map</h4>
+                            <div id="map" style="height: 300px; width: 100%; border-radius: 8px;"></div>
+                            <button id="showRouteBtn" class="btn btn-primary mt-3">
+                                <i class="fas fa-map-marked-alt mr-2"></i> Show Route in Google Maps
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-footer">
+                    <a href="{{ url_for('user_dashboard') }}" class="btn btn-secondary">
+                        <i class="fas fa-arrow-left mr-2"></i> Back to Dashboard
+                    </a>
+                    <form class="d-inline" method="POST" action="{{ url_for('cancel_booking', booking_id=booking.id) }}">
+                        <button type="submit" class="btn btn-danger" onclick="return confirm('Are you sure you want to cancel this booking?')">
+                            <i class="fas fa-times-circle mr-2"></i> Cancel Booking
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-12">
+            <div class="card shadow-sm">
+                <div class="card-header bg-dark text-white">
+                    <h3 class="mb-0">Your Booking History</h3>
+                </div>
+                <div class="card-body">
+                    {% if history %}
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>Bus Route</th>
+                                    <th>Seat</th>
+                                    <th>Booked On</th>
+                                    <th>Ended On</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item in history %}
+                                <tr>
+                                    <td>{{ item.bus.route }}</td>
+                                    <td>{{ item.seat_number }}</td>
+                                    <td>{{ item.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                                    <td>{{ item.ended_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                                    <td>
+                                        {% if item.status == 'Completed' %}
+                                        <span class="badge badge-success">{{ item.status }}</span>
+                                        {% elif item.status == 'Cancelled' %}
+                                        <span class="badge badge-danger">{{ item.status }}</span>
+                                        {% else %}
+                                        <span class="badge badge-warning">{{ item.status }}</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <p class="text-muted">No booking history available.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Google Maps integration - only load when needed
+    let map;
+    let directionsService;
+    let directionsRenderer;
+    
+    document.getElementById('showRouteBtn').addEventListener('click', function() {
+        const busLatitude = parseFloat("{{ booking.bus.latitude|default(0) }}");
+        const busLongitude = parseFloat("{{ booking.bus.longitude|default(0) }}");
+        
+        // Open Google Maps in a new tab with directions
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(function(position) {
+                const userLat = position.coords.latitude;
+                const userLng = position.coords.longitude;
+                
+                const mapsUrl = "https://www.google.com/maps/dir/" + userLat + "," + userLng + "/" + busLatitude + "," + busLongitude;
+                window.open(mapsUrl, '_blank');
+            }, function() {
+                // If user denies location permission, just show the bus location
+                const mapsUrl = "https://www.google.com/maps/search/?api=1&query=" + busLatitude + "," + busLongitude;
+                window.open(mapsUrl, '_blank');
+            });
+        } else {
+            // Fallback if geolocation not supported
+            const mapsUrl = "https://www.google.com/maps/search/?api=1&query=" + busLatitude + "," + busLongitude;
+            window.open(mapsUrl, '_blank');
+        }
+    });
+    
+    // Load Google Maps API and initialize map
+    function initMap() {
+        const busLatitude = parseFloat("{{ booking.bus.latitude|default(0) }}");
+        const busLongitude = parseFloat("{{ booking.bus.longitude|default(0) }}");
+        
+        const busLocation = { 
+            lat: busLatitude, 
+            lng: busLongitude 
+        };
+        
+        map = new google.maps.Map(document.getElementById("map"), {
+            center: busLocation,
+            zoom: 15
+        });
+        
+        // Add marker for bus location
+        new google.maps.Marker({
+            position: busLocation,
+            map: map,
+            title: "Bus Location",
+            icon: {
+                url: "http://maps.google.com/mapfiles/ms/icons/blue-dot.png"
+            }
+        });
+        
+        directionsService = new google.maps.DirectionsService();
+        directionsRenderer = new google.maps.DirectionsRenderer();
+        directionsRenderer.setMap(map);
+    }
+    
+    // Check if bus location data exists before loading map
+    (function() {
+        const busLatitude = parseFloat("{{ booking.bus.latitude|default(0) }}");
+        const busLongitude = parseFloat("{{ booking.bus.longitude|default(0) }}");
+        
+        if (busLatitude !== 0 && busLongitude !== 0) {
+            // Lazy load the Maps API only when data is available
+            const script = document.createElement('script');
+            script.src = "https://maps.googleapis.com/maps/api/js?key=AIzaSyApq25cUgw1k5tyFJVI4Ffd49bhg116rkc&callback=initMap";
+            script.async = true;
+            script.defer = true;
+            document.head.appendChild(script);
+        } else {
+            document.getElementById('map').innerHTML = '<div class="alert alert-info">Live bus location not available</div>';
+        }
+    })();
+</script>
+{% endblock %} 

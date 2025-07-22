@@ -1,0 +1,609 @@
+{% extends "base.html" %}
+{% block title %}Live Bus Tracking{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card shadow-sm">
+                <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+                    <h3 class="mb-0"><i class="fas fa-map-marked-alt mr-2"></i> Live Bus Tracking</h3>
+                    <div>
+                        <button id="getUserLocationBtn" class="btn btn-sm btn-primary me-2">
+                            <i class="fas fa-location-arrow"></i> My Location
+                        </button>
+                        <span class="badge bg-success" id="trackingStatus">
+                            <i class="fas fa-satellite-dish mr-1"></i> Live
+                        </span>
+                    </div>
+                </div>
+                <div class="card-body p-0">
+                    <div id="map" style="height: 500px; width: 100%; border-radius: 0 0 5px 5px;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-8">
+            <div class="card shadow-sm">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0"><i class="fas fa-bus mr-2"></i> Active Buses</h4>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover" id="busTable">
+                            <thead>
+                                <tr>
+                                    <th>Bus</th>
+                                    <th>Route</th>
+                                    <th>Driver</th>
+                                    <th>Last Update</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- Will be filled dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-4">
+            <div class="card shadow-sm">
+                <div class="card-header bg-info text-white">
+                    <h4 class="mb-0"><i class="fas fa-info-circle mr-2"></i> Bus Information</h4>
+                </div>
+                <div class="card-body" id="busInfo">
+                    <div class="text-center py-5">
+                        <i class="fas fa-bus fa-3x mb-3 text-muted"></i>
+                        <p>Select a bus from the map or list to view details</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let map;
+    let markers = {};
+    let infoWindows = {};
+    let busData = {};
+    let selectedBusId = null;
+    let directionsService;
+    let directionsRenderer;
+    let updateInterval;
+    let lastUpdate = {};
+    let userLocationMarker = null;
+    let userLocation = null;
+    let geocoder;
+    let destinations = {};
+
+    function initMap() {
+        // Initialize the map centered on India
+        map = new google.maps.Map(document.getElementById('map'), {
+            center: { lat: 20.5937, lng: 78.9629 },
+            zoom: 5,
+            styles: [
+                {
+                    "featureType": "administrative",
+                    "elementType": "geometry",
+                    "stylers": [{"visibility": "off"}]
+                },
+                {
+                    "featureType": "poi",
+                    "stylers": [{"visibility": "off"}]
+                },
+                {
+                    "featureType": "transit",
+                    "elementType": "labels.icon",
+                    "stylers": [{"visibility": "off"}]
+                }
+            ],
+            mapTypeControl: true,
+            mapTypeControlOptions: {
+                style: google.maps.MapTypeControlStyle.DROPDOWN_MENU
+            }
+        });
+
+        // Initialize directions service and geocoder
+        directionsService = new google.maps.DirectionsService();
+        directionsRenderer = new google.maps.DirectionsRenderer({
+            suppressMarkers: true,
+            polylineOptions: {
+                strokeColor: '#2196F3',
+                strokeWeight: 5
+            }
+        });
+        directionsRenderer.setMap(map);
+        geocoder = new google.maps.Geocoder();
+
+        // Get user's location button handler
+        document.getElementById('getUserLocationBtn').addEventListener('click', getUserLocation);
+
+        // Fetch and update bus locations
+        fetchAndUpdateMarkers();
+        
+        // Refresh every 10 seconds
+        updateInterval = setInterval(fetchAndUpdateMarkers, 10000);
+
+        // Initialize the time counter
+        setInterval(updateTimeCounter, 1000);
+
+        // Try to get user location automatically
+        getUserLocation();
+    }
+
+    function getUserLocation() {
+        if (navigator.geolocation) {
+            document.getElementById('getUserLocationBtn').innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+            
+            navigator.geolocation.getCurrentPosition(position => {
+                userLocation = {
+                    lat: position.coords.latitude,
+                    lng: position.coords.longitude
+                };
+                
+                // Add or update marker for user location
+                if (userLocationMarker) {
+                    userLocationMarker.setPosition(userLocation);
+                } else {
+                    userLocationMarker = new google.maps.Marker({
+                        position: userLocation,
+                        map: map,
+                        icon: {
+                            url: 'http://maps.google.com/mapfiles/ms/icons/red-dot.png',
+                            scaledSize: new google.maps.Size(40, 40)
+                        },
+                        title: 'Your Location',
+                        animation: google.maps.Animation.DROP
+                    });
+
+                    // Add info window for user location
+                    const userInfoWindow = new google.maps.InfoWindow({
+                        content: '<div style="padding: 5px;"><h5 style="margin: 0; color: #FF5722;">Your Location</h5></div>'
+                    });
+
+                    userLocationMarker.addListener('click', () => {
+                        userInfoWindow.open(map, userLocationMarker);
+                    });
+                }
+                
+                // Center map on user
+                map.setCenter(userLocation);
+                map.setZoom(15);
+                
+                // Reverse geocode to get address
+                geocoder.geocode({ 'location': userLocation }, (results, status) => {
+                    if (status === 'OK' && results[0]) {
+                        const address = results[0].formatted_address;
+                        
+                        // Update button
+                        document.getElementById('getUserLocationBtn').innerHTML = 
+                            '<i class="fas fa-location-arrow"></i> My Location';
+                            
+                        // If we have a selected bus, update the route
+                        if (selectedBusId && markers[selectedBusId]) {
+                            calculateAndDisplayRoute(selectedBusId);
+                        }
+                    }
+                });
+            }, error => {
+                console.error('Error getting user location:', error);
+                document.getElementById('getUserLocationBtn').innerHTML = 
+                    '<i class="fas fa-location-arrow"></i> My Location';
+                alert('Unable to get your location. Please check your location permissions.');
+            });
+        } else {
+            alert('Geolocation is not supported by your browser');
+        }
+    }
+
+    function updateTimeCounter() {
+        const now = new Date();
+        Object.keys(lastUpdate).forEach(busId => {
+            const seconds = Math.floor((now - lastUpdate[busId]) / 1000);
+            const element = document.getElementById(`lastUpdate-${busId}`);
+            if (element) {
+                if (seconds < 60) {
+                    element.textContent = `${seconds} sec ago`;
+                } else if (seconds < 3600) {
+                    element.textContent = `${Math.floor(seconds / 60)} min ago`;
+                } else {
+                    element.textContent = `${Math.floor(seconds / 3600)} hours ago`;
+                }
+
+                // Update status colors
+                if (seconds > 300) { // 5 minutes
+                    element.classList.remove('text-success', 'text-warning');
+                    element.classList.add('text-danger');
+                } else if (seconds > 60) { // 1 minute
+                    element.classList.remove('text-success', 'text-danger');
+                    element.classList.add('text-warning');
+                } else {
+                    element.classList.remove('text-warning', 'text-danger');
+                    element.classList.add('text-success');
+                }
+            }
+            
+            // Also update in bus detail view
+            const detailElement = document.getElementById(`busDetail-lastUpdate-${busId}`);
+            if (detailElement) {
+                if (seconds < 60) {
+                    detailElement.textContent = `${seconds} sec ago`;
+                } else if (seconds < 3600) {
+                    detailElement.textContent = `${Math.floor(seconds / 60)} min ago`;
+                } else {
+                    detailElement.textContent = `${Math.floor(seconds / 3600)} hours ago`;
+                }
+            }
+        });
+    }
+
+    function fetchAndUpdateMarkers() {
+        const trackingStatus = document.getElementById('trackingStatus');
+        trackingStatus.innerHTML = '<i class="fas fa-sync fa-spin mr-1"></i> Updating';
+
+        fetch('/api/bus_locations')
+            .then(res => res.json())
+            .then(buses => {
+                busData = {};
+                const tableBody = document.getElementById('busTable').getElementsByTagName('tbody')[0];
+                tableBody.innerHTML = '';
+                
+                // Update the tracking status
+                trackingStatus.innerHTML = '<i class="fas fa-satellite-dish mr-1"></i> Live';
+                
+                if (buses.length === 0) {
+                    tableBody.innerHTML = '<tr><td colspan="5" class="text-center">No buses currently active</td></tr>';
+                    return;
+                }
+
+                buses.forEach(bus => {
+                    busData[bus.id] = bus;
+                    
+                    // Determine destination from route
+                    if (!destinations[bus.id] && bus.route) {
+                        // Extract destination from route (assuming format like "Start to Destination")
+                        const routeParts = bus.route.split(' to ');
+                        if (routeParts.length > 1) {
+                            const destination = routeParts[1].trim();
+                            
+                            // Geocode the destination to get coordinates
+                            geocoder.geocode({ 'address': destination }, (results, status) => {
+                                if (status === 'OK' && results[0]) {
+                                    destinations[bus.id] = {
+                                        name: destination,
+                                        location: results[0].geometry.location
+                                    };
+                                    
+                                    // Add destination marker
+                                    new google.maps.Marker({
+                                        position: results[0].geometry.location,
+                                        map: map,
+                                        icon: {
+                                            url: 'http://maps.google.com/mapfiles/ms/icons/yellow-dot.png',
+                                            scaledSize: new google.maps.Size(40, 40)
+                                        },
+                                        title: `Destination: ${destination}`
+                                    });
+                                }
+                            });
+                        }
+                    }
+                    
+                    // Update markers on the map
+                    if (bus.latitude && bus.longitude) {
+                        const position = { lat: bus.latitude, lng: bus.longitude };
+                        lastUpdate[bus.id] = new Date();
+
+                        // Create or update the marker
+                        if (markers[bus.id]) {
+                            markers[bus.id].setPosition(position);
+                        } else {
+                            markers[bus.id] = new google.maps.Marker({
+                                position: position,
+                                map: map,
+                                title: bus.route,
+                                icon: {
+                                    url: 'http://maps.google.com/mapfiles/ms/icons/blue-dot.png',
+                                    scaledSize: new google.maps.Size(40, 40)
+                                },
+                                animation: google.maps.Animation.DROP
+                            });
+
+                            // Add click listener to marker
+                            markers[bus.id].addListener('click', () => selectBus(bus.id));
+                        }
+
+                        // Create or update info window
+                        if (!infoWindows[bus.id]) {
+                            infoWindows[bus.id] = new google.maps.InfoWindow();
+                        }
+                        
+                        infoWindows[bus.id].setContent(`
+                            <div style="padding: 5px;">
+                                <h5 style="margin: 0; color: #2196F3;">${bus.route}</h5>
+                                <p style="margin: 5px 0;">Driver: ${bus.driver_name}</p>
+                                <button onclick="selectBus(${bus.id})" style="background: #2196F3; color: white; border: none; padding: 5px 10px; border-radius: 5px; cursor: pointer;">Details</button>
+                            </div>
+                        `);
+                    }
+
+                    // Add to the table
+                    const row = tableBody.insertRow();
+                    row.innerHTML = `
+                        <td>
+                            <div class="d-flex align-items-center">
+                                <i class="fas fa-bus text-primary mr-2"></i>
+                                <span>Bus #${bus.id}</span>
+                            </div>
+                        </td>
+                        <td>${bus.route}</td>
+                        <td>${bus.driver_name}</td>
+                        <td><span class="text-success" id="lastUpdate-${bus.id}">Just now</span></td>
+                        <td>
+                            <button class="btn btn-sm btn-primary" onclick="selectBus(${bus.id})">
+                                <i class="fas fa-info-circle"></i> Details
+                            </button>
+                            <button class="btn btn-sm btn-success" onclick="locateBus(${bus.id})">
+                                <i class="fas fa-map-marker-alt"></i> Locate
+                            </button>
+                        </td>
+                    `;
+                });
+
+                // If we have a selected bus, refresh its info
+                if (selectedBusId && busData[selectedBusId]) {
+                    showBusInfo(selectedBusId);
+                    
+                    // Update route if user location is available
+                    if (userLocation) {
+                        calculateAndDisplayRoute(selectedBusId);
+                    }
+                }
+                
+                // Auto-zoom if we have buses and no selected bus
+                if (Object.keys(markers).length > 0 && !selectedBusId) {
+                    const bounds = new google.maps.LatLngBounds();
+                    Object.values(markers).forEach(marker => {
+                        bounds.extend(marker.getPosition());
+                    });
+                    
+                    // Include user location if available
+                    if (userLocation) {
+                        bounds.extend(userLocation);
+                    }
+                    
+                    map.fitBounds(bounds);
+                }
+            })
+            .catch(err => {
+                console.error('Error fetching bus locations:', err);
+                trackingStatus.innerHTML = '<i class="fas fa-exclamation-triangle mr-1"></i> Connection Error';
+                trackingStatus.classList.remove('bg-success');
+                trackingStatus.classList.add('bg-danger');
+            });
+    }
+
+    function selectBus(busId) {
+        selectedBusId = busId;
+        
+        // Highlight the selected bus
+        Object.values(markers).forEach(marker => {
+            marker.setIcon({
+                url: 'http://maps.google.com/mapfiles/ms/icons/blue-dot.png',
+                scaledSize: new google.maps.Size(40, 40)
+            });
+        });
+        
+        if (markers[busId]) {
+            markers[busId].setIcon({
+                url: 'http://maps.google.com/mapfiles/ms/icons/green-dot.png',
+                scaledSize: new google.maps.Size(50, 50)
+            });
+            
+            // Open the info window
+            infoWindows[busId].open(map, markers[busId]);
+            
+            // Center the map on the bus
+            map.setCenter(markers[busId].getPosition());
+            map.setZoom(15);
+            
+            // Calculate route if user location is available
+            if (userLocation) {
+                calculateAndDisplayRoute(busId);
+            }
+        }
+        
+        // Show bus information
+        showBusInfo(busId);
+    }
+
+    function showBusInfo(busId) {
+        const bus = busData[busId];
+        const busInfoElement = document.getElementById('busInfo');
+        
+        if (bus) {
+            // Get destination information
+            let destinationInfo = '';
+            if (destinations[busId]) {
+                destinationInfo = `
+                    <div class="card bg-light mb-3">
+                        <div class="card-body p-2">
+                            <h6 class="mb-1">Destination</h6>
+                            <p class="mb-0">${destinations[busId].name}</p>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            busInfoElement.innerHTML = `
+                <h4 class="mb-3">${bus.route}</h4>
+                <div class="bus-details">
+                    <div class="d-flex align-items-center mb-3">
+                        <div class="bg-light rounded-circle p-3 mr-3">
+                            <i class="fas fa-user text-primary fa-2x"></i>
+                        </div>
+                        <div>
+                            <h6 class="mb-0">Driver</h6>
+                            <p class="mb-0 font-weight-bold">${bus.driver_name}</p>
+                            <p class="mb-0 small">${bus.driver_phone}</p>
+                        </div>
+                    </div>
+
+                    <div class="card bg-light mb-3">
+                        <div class="card-body p-2">
+                            <h6 class="mb-1">Available Seats</h6>
+                            <p class="mb-0">${bus.seats_available} / ${bus.seats_total}</p>
+                        </div>
+                    </div>
+                    
+                    ${destinationInfo}
+
+                    <div class="card bg-light mb-3">
+                        <div class="card-body p-2">
+                            <h6 class="mb-1">Current Coordinates</h6>
+                            <p class="mb-0">
+                                <span class="badge bg-secondary mr-1">Lat:</span> ${bus.latitude ? bus.latitude.toFixed(6) : 'N/A'}<br>
+                                <span class="badge bg-secondary mr-1">Lng:</span> ${bus.longitude ? bus.longitude.toFixed(6) : 'N/A'}
+                            </p>
+                        </div>
+                    </div>
+
+                    <div class="btn-group w-100 mb-3">
+                        <button class="btn btn-primary" onclick="findMyRoute(${busId})">
+                            <i class="fas fa-directions mr-1"></i> Directions to Me
+                        </button>
+                        <button class="btn btn-success" onclick="findDestinationRoute(${busId})">
+                            <i class="fas fa-map-signs mr-1"></i> Show Route to Destination
+                        </button>
+                    </div>
+
+                    <hr>
+                    <p class="text-muted small mb-0">Last updated: <span id="busDetail-lastUpdate-${busId}">Just now</span></p>
+                </div>
+            `;
+        } else {
+            busInfoElement.innerHTML = `
+                <div class="text-center py-5">
+                    <i class="fas fa-bus fa-3x mb-3 text-muted"></i>
+                    <p>Select a bus from the map or list to view details</p>
+                </div>
+            `;
+        }
+    }
+
+    function calculateAndDisplayRoute(busId) {
+        if (!userLocation || !markers[busId]) return;
+        
+        // Calculate route from user to bus
+        directionsService.route({
+            origin: userLocation,
+            destination: markers[busId].getPosition(),
+            travelMode: google.maps.TravelMode.DRIVING
+        }, (response, status) => {
+            if (status === 'OK') {
+                directionsRenderer.setDirections(response);
+                
+                // Get route info
+                const route = response.routes[0];
+                const duration = route.legs[0].duration.text;
+                const distance = route.legs[0].distance.text;
+                
+                // Update info window
+                infoWindows[busId].setContent(`
+                    <div style="padding: 5px;">
+                        <h5 style="margin: 0; color: #2196F3;">${busData[busId].route}</h5>
+                        <p style="margin: 5px 0;">Driver: ${busData[busId].driver_name}</p>
+                        <p style="margin: 5px 0;">
+                            <strong>Distance to bus:</strong> ${distance}<br>
+                            <strong>Est. Time:</strong> ${duration}
+                        </p>
+                        <button onclick="selectBus(${busId})" style="background: #2196F3; color: white; border: none; padding: 5px 10px; border-radius: 5px; cursor: pointer;">Details</button>
+                    </div>
+                `);
+                infoWindows[busId].open(map, markers[busId]);
+                
+                // Fit map to show the whole route
+                const bounds = new google.maps.LatLngBounds();
+                bounds.extend(userLocation);
+                bounds.extend(markers[busId].getPosition());
+                map.fitBounds(bounds);
+            }
+        });
+    }
+
+    function locateBus(busId) {
+        if (markers[busId]) {
+            map.setCenter(markers[busId].getPosition());
+            map.setZoom(15);
+            infoWindows[busId].open(map, markers[busId]);
+        }
+    }
+
+    function findMyRoute(busId) {
+        if (!markers[busId]) return;
+        
+        if (!userLocation) {
+            getUserLocation();
+            setTimeout(() => {
+                if (userLocation) calculateAndDisplayRoute(busId);
+            }, 2000);
+        } else {
+            calculateAndDisplayRoute(busId);
+        }
+    }
+    
+    function findDestinationRoute(busId) {
+        if (!markers[busId] || !destinations[busId]) return;
+        
+        // Calculate route from bus to destination
+        directionsService.route({
+            origin: markers[busId].getPosition(),
+            destination: destinations[busId].location,
+            travelMode: google.maps.TravelMode.DRIVING
+        }, (response, status) => {
+            if (status === 'OK') {
+                directionsRenderer.setDirections(response);
+                
+                // Get route info
+                const route = response.routes[0];
+                const duration = route.legs[0].duration.text;
+                const distance = route.legs[0].distance.text;
+                
+                // Update info window
+                infoWindows[busId].setContent(`
+                    <div style="padding: 5px;">
+                        <h5 style="margin: 0; color: #2196F3;">${busData[busId].route}</h5>
+                        <p style="margin: 5px 0;">Driver: ${busData[busId].driver_name}</p>
+                        <p style="margin: 5px 0;">
+                            <strong>Distance to destination:</strong> ${distance}<br>
+                            <strong>Est. Time:</strong> ${duration}
+                        </p>
+                        <button onclick="selectBus(${busId})" style="background: #2196F3; color: white; border: none; padding: 5px 10px; border-radius: 5px; cursor: pointer;">Details</button>
+                    </div>
+                `);
+                infoWindows[busId].open(map, markers[busId]);
+                
+                // Fit map to show the whole route
+                const bounds = new google.maps.LatLngBounds();
+                bounds.extend(markers[busId].getPosition());
+                bounds.extend(destinations[busId].location);
+                map.fitBounds(bounds);
+            }
+        });
+    }
+</script>
+
+<!-- Load Google Maps API only when needed -->
+<script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyApq25cUgw1k5tyFJVI4Ffd49bhg116rkc&callback=initMap"></script>
+
+<!-- Add Font Awesome for icons -->
+<script src="https://kit.fontawesome.com/a076d05399.js" crossorigin="anonymous"></script>
+{% endblock %}

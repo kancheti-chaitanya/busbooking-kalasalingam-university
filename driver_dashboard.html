@@ -1,0 +1,292 @@
+{% extends "base.html" %}
+{% block title %}Driver Dashboard{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row mb-4">
+        <div class="col-12">
+            <h2><i class="fas fa-user-tie mr-2"></i> Driver Dashboard</h2>
+            <p class="text-muted">Welcome, {{ user.username }}</p>
+        </div>
+    </div>
+
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="card shadow-sm h-100">
+                <div class="card-header bg-primary text-white">
+                    <h3 class="mb-0">Your Buses</h3>
+                </div>
+                <div class="card-body">
+                    {% if buses %}
+                    <div class="list-group">
+                        {% for bus in buses %}
+                        <div class="list-group-item list-group-item-action">
+                            <div class="d-flex w-100 justify-content-between">
+                                <h5 class="mb-1">{{ bus.route }}</h5>
+                                <small>ID: {{ bus.id }}</small>
+                            </div>
+                            <p class="mb-1">Seats: {{ bus.seats_available }}/{{ bus.seats_total }}</p>
+                            <p class="mb-1">Timing: {{ bus.timing }}</p>
+                            <div class="d-flex justify-content-between align-items-center mt-2">
+                                <span class="text-muted small">
+                                    <i class="fas fa-map-marker-alt text-danger"></i>
+                                    {% if bus.latitude and bus.longitude %}
+                                    Lat: {{ bus.latitude|round(4) }}, Lng: {{ bus.longitude|round(4) }}
+                                    {% else %}
+                                    No location set
+                                    {% endif %}
+                                </span>
+                                <a href="{{ url_for('update_location', bus_id=bus.id) }}" class="btn btn-primary btn-sm">
+                                    <i class="fas fa-map-marker-alt mr-1"></i> Update Location
+                                </a>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle mr-2"></i> You don't have any buses assigned to you.
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6">
+            <div class="card shadow-sm h-100">
+                <div class="card-header bg-info text-white">
+                    <h3 class="mb-0">Quick Location Update</h3>
+                </div>
+                <div class="card-body">
+                    {% if buses %}
+                    <div class="mb-3">
+                        <label for="busSelector" class="form-label">Select Bus</label>
+                        <select class="form-select" id="busSelector">
+                            {% for bus in buses %}
+                            <option value="{{ bus.id }}">{{ bus.route }} (ID: {{ bus.id }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="d-grid">
+                        <button class="btn btn-success mb-3" id="useCurrentLocationBtn">
+                            <i class="fas fa-crosshairs mr-2"></i> Use Current Location
+                        </button>
+                    </div>
+                    <div id="locationStatus"></div>
+                    <div id="map" style="height: 300px; border-radius: 5px;"></div>
+                    {% else %}
+                    <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-triangle mr-2"></i> No buses available for quick update.
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-12">
+            <div class="card shadow-sm">
+                <div class="card-header bg-dark text-white">
+                    <h3 class="mb-0">Location History</h3>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle mr-2"></i> Your 5 most recent location updates are shown here.
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-striped" id="locationHistory">
+                            <thead>
+                                <tr>
+                                    <th>Date/Time</th>
+                                    <th>Bus</th>
+                                    <th>Latitude</th>
+                                    <th>Longitude</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- This will be populated with JavaScript -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let map;
+    let marker;
+    let locationHistory = [];
+    
+    // Initialize map
+    function initMap() {
+        // Default center (India)
+        const defaultLocation = { lat: 20.5937, lng: 78.9629 };
+        
+        map = new google.maps.Map(document.getElementById('map'), {
+            zoom: 15,
+            center: defaultLocation
+        });
+        
+        // Create a marker that we'll reuse
+        marker = new google.maps.Marker({
+            position: defaultLocation,
+            map: map,
+            icon: {
+                url: 'http://maps.google.com/mapfiles/ms/icons/blue-dot.png',
+                scaledSize: new google.maps.Size(40, 40)
+            },
+            draggable: true
+        });
+        
+        // When the marker is dragged, update the info
+        google.maps.event.addListener(marker, 'dragend', function() {
+            const position = marker.getPosition();
+            const selectedBusId = document.getElementById('busSelector').value;
+            updateBusLocation(selectedBusId, position.lat(), position.lng());
+        });
+        
+        // Try to center on the first bus in the list
+        const busSelector = document.getElementById('busSelector');
+        if (busSelector && busSelector.options.length > 0) {
+            updateMapForBus(busSelector.value);
+        }
+        
+        // When bus selection changes, update the map
+        if (busSelector) {
+            busSelector.addEventListener('change', function() {
+                updateMapForBus(this.value);
+            });
+        }
+    }
+    
+    function updateMapForBus(busId) {
+        fetch(`/api/bus_locations`)
+            .then(response => response.json())
+            .then(buses => {
+                const bus = buses.find(b => b.id == busId);
+                if (bus && bus.latitude && bus.longitude) {
+                    const position = { lat: bus.latitude, lng: bus.longitude };
+                    marker.setPosition(position);
+                    map.setCenter(position);
+                    marker.setTitle(bus.route);
+                }
+            });
+    }
+    
+    // Use current location button
+    const useCurrentLocationBtn = document.getElementById('useCurrentLocationBtn');
+    if (useCurrentLocationBtn) {
+        useCurrentLocationBtn.addEventListener('click', function() {
+            const statusDiv = document.getElementById('locationStatus');
+            statusDiv.innerHTML = '<div class="alert alert-info"><i class="fas fa-spinner fa-spin mr-2"></i> Getting your current location...</div>';
+            
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(function(position) {
+                    const lat = position.coords.latitude;
+                    const lng = position.coords.longitude;
+                    const selectedBusId = document.getElementById('busSelector').value;
+                    
+                    const newPosition = { lat, lng };
+                    marker.setPosition(newPosition);
+                    map.setCenter(newPosition);
+                    
+                    updateBusLocation(selectedBusId, lat, lng);
+                }, function(error) {
+                    console.error('Error getting location:', error);
+                    statusDiv.innerHTML = '<div class="alert alert-danger"><i class="fas fa-exclamation-triangle mr-2"></i> Unable to get your location. Please check your permissions.</div>';
+                }, {
+                    enableHighAccuracy: true,
+                    timeout: 10000,
+                    maximumAge: 0
+                });
+            } else {
+                statusDiv.innerHTML = '<div class="alert alert-danger"><i class="fas fa-exclamation-triangle mr-2"></i> Geolocation is not supported by your browser.</div>';
+            }
+        });
+    }
+    
+    function updateBusLocation(busId, lat, lng) {
+        const statusDiv = document.getElementById('locationStatus');
+        statusDiv.innerHTML = '<div class="alert alert-info"><i class="fas fa-spinner fa-spin mr-2"></i> Updating location...</div>';
+        
+        // Send the location update
+        fetch(`/update_location/${busId}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                latitude: lat,
+                longitude: lng
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                statusDiv.innerHTML = '<div class="alert alert-success"><i class="fas fa-check-circle mr-2"></i> Location updated successfully!</div>';
+                
+                // Add to history
+                const now = new Date();
+                const busName = document.querySelector(`#busSelector option[value="${busId}"]`).textContent;
+                
+                locationHistory.unshift({
+                    date: now,
+                    busId: busId,
+                    busName: busName,
+                    lat: lat,
+                    lng: lng
+                });
+                
+                // Keep only last 5 records
+                if (locationHistory.length > 5) {
+                    locationHistory.pop();
+                }
+                
+                updateLocationHistoryTable();
+                
+                // Hide the success message after 3 seconds
+                setTimeout(() => {
+                    statusDiv.innerHTML = '';
+                }, 3000);
+            } else {
+                statusDiv.innerHTML = '<div class="alert alert-danger"><i class="fas fa-exclamation-triangle mr-2"></i> Failed to update location.</div>';
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            statusDiv.innerHTML = '<div class="alert alert-danger"><i class="fas fa-exclamation-triangle mr-2"></i> An error occurred while updating location.</div>';
+        });
+    }
+    
+    function updateLocationHistoryTable() {
+        const tableBody = document.querySelector('#locationHistory tbody');
+        if (!tableBody) return;
+        
+        tableBody.innerHTML = '';
+        
+        locationHistory.forEach(record => {
+            const row = tableBody.insertRow();
+            
+            const dateCell = row.insertCell();
+            dateCell.textContent = record.date.toLocaleString();
+            
+            const busCell = row.insertCell();
+            busCell.textContent = record.busName;
+            
+            const latCell = row.insertCell();
+            latCell.textContent = record.lat.toFixed(6);
+            
+            const lngCell = row.insertCell();
+            lngCell.textContent = record.lng.toFixed(6);
+        });
+    }
+</script>
+
+<!-- Load Google Maps API -->
+<script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyApq25cUgw1k5tyFJVI4Ffd49bhg116rkc&callback=initMap"></script>
+{% endblock %} 

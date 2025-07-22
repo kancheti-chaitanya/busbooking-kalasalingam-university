@@ -1,0 +1,144 @@
+{% extends "base.html" %} 
+{% block title %}User Dashboard{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row mb-4">
+        <div class="col-12">
+            <h2>Welcome, {{ user.username }}</h2>
+            <p class="text-muted">Student Dashboard</p>
+        </div>
+    </div>
+
+    <!-- Fee Status -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card shadow-sm">
+                <div class="card-header {% if user.fee_paid %}bg-success{% else %}bg-danger{% endif %} text-white">
+                    <h3 class="mb-0">Fee Status</h3>
+                </div>
+                <div class="card-body">
+                    {% if user.fee_paid %}
+                    <div class="alert alert-success">
+                        <i class="fas fa-check-circle mr-2"></i> Your bus fee has been paid
+                    </div>
+                    {% else %}
+                    <div class="alert alert-danger">
+                        <i class="fas fa-exclamation-triangle mr-2"></i> Your bus fee is pending
+                    </div>
+                    <p>Please contact the administration to complete your fee payment.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Current Bookings -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card shadow-sm">
+                <div class="card-header bg-primary text-white">
+                    <h3 class="mb-0">Current Bookings</h3>
+                </div>
+                <div class="card-body">
+                    {% if bookings %}
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>Bus Route</th>
+                                    <th>Seat Number</th>
+                                    <th>Booked At</th>
+                                    <th>Expires</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for booking in bookings %}
+                                <tr>
+                                    <td>{{ booking.bus.route }}</td>
+                                    <td><span class="badge badge-primary">{{ booking.seat_number }}</span></td>
+                                    <td>{{ booking.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                                    <td>{{ booking.expires_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                                    <td>
+                                        <a href="{{ url_for('booking_confirmation', booking_id=booking.id) }}" class="btn btn-sm btn-info">
+                                            <i class="fas fa-info-circle"></i> Details
+                                        </a>
+                                        <form class="d-inline" method="POST" action="{{ url_for('cancel_booking', booking_id=booking.id) }}">
+                                            <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Are you sure you want to cancel this booking?')">
+                                                <i class="fas fa-times-circle"></i> Cancel
+                                            </button>
+                                        </form>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle mr-2"></i> You don't have any active bookings
+                    </div>
+                    {% endif %}
+                </div>
+                <div class="card-footer">
+                    <a href="{{ url_for('booking_history') }}" class="btn btn-secondary">
+                        <i class="fas fa-history mr-2"></i> View Booking History
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Available Buses -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card shadow-sm">
+                <div class="card-header bg-dark text-white">
+                    <h3 class="mb-0">Available Buses</h3>
+                </div>
+                <div class="card-body">
+                    {% if user.fee_paid %}
+                    <div class="row">
+                        {% for bus in buses %}
+                        <div class="col-md-6 col-lg-4 mb-4">
+                            <div class="card h-100">
+                                <div class="card-header bg-light">
+                                    <h5 class="mb-0">{{ bus.route }}</h5>
+                                </div>
+                                <div class="card-body">
+                                    <p><strong>Driver:</strong> {{ bus.driver_name }}</p>
+                                    <p><strong>Phone:</strong> {{ bus.driver_phone }}</p>
+                                    <p><strong>Timing:</strong> {{ bus.timing }}</p>
+                                    <p><strong>Available Seats:</strong> {{ bus.seats_available }}/{{ bus.seats_total }}</p>
+                                </div>
+                                <div class="card-footer">
+                                    {% if bus.seats_available > 0 and not bookings %}
+                                    <a href="{{ url_for('booking', bus_id=bus.id) }}" class="btn btn-primary btn-block">
+                                        <i class="fas fa-ticket-alt mr-2"></i> Book Seat
+                                    </a>
+                                    {% else %}
+                                    <button class="btn btn-secondary btn-block" disabled>
+                                        {% if bookings %}
+                                        <i class="fas fa-ban mr-2"></i> Already Booked
+                                        {% else %}
+                                        <i class="fas fa-ban mr-2"></i> No Seats Available
+                                        {% endif %}
+                                    </button>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-triangle mr-2"></i> Please complete fee payment before booking a seat.
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

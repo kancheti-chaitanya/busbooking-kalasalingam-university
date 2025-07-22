@@ -1,0 +1,142 @@
+{% extends "base.html" %} 
+{% block title %}Admin Dashboard{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+  <h2 class="text-white mb-4">Admin Dashboard</h2>
+
+  <div class="row mb-4">
+    <div class="col">
+      <a href="{{ url_for('add_student') }}" class="btn btn-success me-2">
+        <i class="fas fa-user-plus"></i> Add Student
+      </a>
+      <a href="{{ url_for('add_bus') }}" class="btn btn-info me-2">
+        <i class="fas fa-bus"></i> Add Bus
+      </a>
+      <a href="{{ url_for('add_admin') }}" class="btn btn-warning me-2">
+        <i class="fas fa-user-shield"></i> Add Admin
+      </a>
+      <a href="{{ url_for('bus_simulator') }}" class="btn btn-danger">
+        <i class="fas fa-map-marker-alt"></i> Bus Simulator
+      </a>
+    </div>
+  </div>
+
+  <nav aria-label="breadcrumb">
+    <ol class="breadcrumb bg-dark text-white p-2">
+      <li class="breadcrumb-item"><a href="{{ url_for('admin_dashboard') }}" class="text-info">Dashboard</a></li>
+      <li class="breadcrumb-item active text-white" aria-current="page">Analytics</li>
+    </ol>
+  </nav>
+
+  <h4 class="text-light mt-4">Bus Occupancy Rates</h4>
+  <canvas id="occupancyChart" width="400" height="200"></canvas>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      const ctx = document.getElementById('occupancyChart').getContext('2d');
+      
+      // Create sample data if not provided by server
+      const labels = {% if occupancy_labels %}{{ occupancy_labels|safe }}{% else %}["Route 1", "Route 2", "Route 3", "Route 4"]{% endif %};
+      const data = {% if occupancy_data %}{{ occupancy_data|safe }}{% else %}[75, 60, 90, 30]{% endif %};
+      
+      const occupancyChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: 'Occupancy (%)',
+            data: data,
+            backgroundColor: 'rgba(54, 162, 235, 0.6)',
+            borderColor: 'rgba(54, 162, 235, 1)',
+            borderWidth: 1
+          }]
+        },
+        options: { scales: { y: { beginAtZero: true } } }
+      });
+    });
+  </script>
+
+  <h4 class="text-light mt-5">Students</h4>
+  <input type="text" id="studentSearch" class="form-control mb-3 bg-dark text-white border-light" placeholder="Search by ID or username">
+  <div class="table-responsive">
+    <table class="table table-dark table-bordered table-hover" id="studentTable">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Username</th>
+          <th>Fee Paid</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for student in students %}
+        <tr>
+          <td>{{ student.id }}</td>
+          <td>{{ student.username }}</td>
+          <td>{{ 'Yes' if student.fee_paid else 'No' }}</td>
+          <td>
+            <form method="POST" action="{{ url_for('update_fee', student_id=student.id) }}">
+              <div class="form-check form-switch d-inline-block me-2">
+                <input class="form-check-input" type="checkbox" name="fee_paid" id="fee_{{ student.id }}" {% if student.fee_paid %}checked{% endif %}>
+              </div>
+              <button type="submit" class="btn btn-sm btn-primary">Update Fee</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <h4 class="text-light mt-5">Buses</h4>
+  <input type="text" id="busSearch" class="form-control mb-3 bg-dark text-white border-light" placeholder="Search by route or driver">
+  <div class="table-responsive">
+    <table class="table table-dark table-striped table-bordered" id="busTable">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Route</th>
+          <th>Seats (Avail/Total)</th>
+          <th>Driver</th>
+          <th>Timing</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for bus in buses %}
+        <tr>
+          <td>{{ bus.id }}</td>
+          <td>{{ bus.route }}</td>
+          <td>{{ bus.seats_available }}/{{ bus.seats_total }}</td>
+          <td>{{ bus.driver_name }} ({{ bus.driver_phone }})</td>
+          <td>{{ bus.timing }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% block scripts %}
+<script>
+  document.getElementById("studentSearch").addEventListener("keyup", function() {
+    let input = this.value.toLowerCase();
+    document.querySelectorAll("#studentTable tbody tr").forEach(function(row) {
+      let id = row.cells[0].innerText.toLowerCase();
+      let username = row.cells[1].innerText.toLowerCase();
+      row.style.display = (id.includes(input) || username.includes(input)) ? "" : "none";
+    });
+  });
+
+  document.getElementById("busSearch").addEventListener("keyup", function() {
+    let input = this.value.toLowerCase();
+    document.querySelectorAll("#busTable tbody tr").forEach(function(row) {
+      let route = row.cells[1].innerText.toLowerCase();
+      let driver = row.cells[3].innerText.toLowerCase();
+      row.style.display = (route.includes(input) || driver.includes(input)) ? "" : "none";
+    });
+  });
+</script>
+{% endblock %}
+{% endblock %}

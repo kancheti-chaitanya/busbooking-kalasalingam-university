@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}Home - BusApp{% endblock %}
+{% block content %}
+<div class="text-center mt-5">
+  <h1>Welcome to BusApp</h1>
+  <p class="lead">Your comprehensive solution for efficient bus management and live tracking.</p>
+  <div class="mt-4">
+    <a href="{{ url_for('login') }}" class="btn btn-primary btn-lg mx-2">Login</a>
+    <a href="{{ url_for('live_tracking') }}" class="btn btn-info btn-lg mx-2">Live Tracking</a>
+  </div>
+</div>
+{% endblock %}

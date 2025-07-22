@@ -1,0 +1,78 @@
+/* Background Image */
+body {
+  background: url('../background.jpg') no-repeat center center fixed;
+  background-size: cover;
+  margin: 0;
+  padding: 0;
+  min-height: 100vh;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  color: #ffffff;
+}
+
+/* Content Box with Better Contrast */
+.content-wrapper {
+  background-color: rgba(0, 0, 0, 0.75);
+  padding: 25px;
+  border-radius: 10px;
+  color: #f1f1f1;
+  box-shadow: 0 0 25px rgba(0, 0, 0, 0.6);
+}
+
+/* Tables */
+table {
+  color: #ffffff;
+  background-color: rgba(255, 255, 255, 0.1);
+  border-collapse: collapse;
+  width: 100%;
+}
+
+th, td {
+  padding: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  text-align: center;
+}
+
+th {
+  background-color: rgba(255, 255, 255, 0.2);
+  font-size: 1.1rem;
+}
+
+/* Forms */
+input, select, textarea {
+  background-color: rgba(255, 255, 255, 0.15);
+  color: #fff;
+  border: 1px solid #ccc;
+  padding: 10px;
+  border-radius: 5px;
+}
+
+input::placeholder, textarea::placeholder {
+  color: #ccc;
+}
+
+/* Buttons */
+.btn {
+  background-color: #ffc107;
+  color: #000;
+  font-weight: bold;
+  border: none;
+}
+
+.btn:hover {
+  background-color: #e0a800;
+  color: #fff;
+}
+
+/* Alerts */
+.alert {
+  font-size: 1rem;
+}
+
+/* Make search bar readable */
+.search-bar {
+  background-color: rgba(255, 255, 255, 0.2);
+  color: #fff;
+  border-radius: 8px;
+  padding: 8px 15px;
+  width: 100%;
+}

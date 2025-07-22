@@ -1,0 +1,78 @@
+{% extends 'base.html' %}
+
+{% block title %}Bus Location Simulator{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="card">
+        <div class="card-header bg-primary text-white">
+            <h2 class="mb-0">Bus Location Simulator</h2>
+        </div>
+        <div class="card-body">
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle"></i> Use this page to update bus locations or simulate bus movement for testing.
+            </div>
+            
+            <h3 class="mb-4">Available Buses</h3>
+            
+            {% for bus in buses %}
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h4>{{ bus.route }}</h4>
+                </div>
+                <div class="card-body">
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <p><strong>Driver:</strong> {{ bus.driver_name }}</p>
+                            <p><strong>Phone:</strong> {{ bus.driver_phone }}</p>
+                            <p><strong>Timing:</strong> {{ bus.timing }}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <p><strong>Current Location:</strong></p>
+                            <p>Latitude: {{ bus.latitude }}</p>
+                            <p>Longitude: {{ bus.longitude }}</p>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <form method="POST" class="mb-3">
+                                <input type="hidden" name="bus_id" value="{{ bus.id }}">
+                                <div class="form-group mb-3">
+                                    <label for="latitude">Latitude:</label>
+                                    <input type="number" step="0.000001" class="form-control" id="latitude" name="latitude" value="{{ bus.latitude }}">
+                                </div>
+                                <div class="form-group mb-3">
+                                    <label for="longitude">Longitude:</label>
+                                    <input type="number" step="0.000001" class="form-control" id="longitude" name="longitude" value="{{ bus.longitude }}">
+                                </div>
+                                <button type="submit" name="update_location" class="btn btn-primary">Update Location</button>
+                            </form>
+                        </div>
+                        <div class="col-md-6">
+                            <form method="POST">
+                                <input type="hidden" name="bus_id" value="{{ bus.id }}">
+                                <div class="alert alert-warning">
+                                    <p><strong>Simulate Movement:</strong></p>
+                                    <p>This will randomly move the bus a small distance to simulate movement.</p>
+                                </div>
+                                <button type="submit" name="simulate_movement" class="btn btn-warning">Simulate Movement</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+            
+            <div class="mt-4">
+                <a href="{{ url_for('live_tracking') }}" class="btn btn-success">
+                    <i class="fas fa-map-marked-alt"></i> View Live Tracking
+                </a>
+                <a href="{{ url_for('admin_dashboard') }}" class="btn btn-secondary">
+                    <i class="fas fa-arrow-left"></i> Back to Dashboard
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 

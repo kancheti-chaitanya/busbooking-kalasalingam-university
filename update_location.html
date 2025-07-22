@@ -1,0 +1,173 @@
+<!-- templates/update_location.html -->
+{% extends "base.html" %}
+{% block title %}Update Bus Location{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row mb-4">
+        <div class="col-md-8 offset-md-2">
+            <div class="card shadow-sm">
+                <div class="card-header bg-primary text-white">
+                    <h3 class="mb-0"><i class="fas fa-map-marker-alt mr-2"></i> Update Bus Location</h3>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-info mb-4">
+                        <i class="fas fa-info-circle mr-2"></i> You are updating the location for bus: <strong>{{ bus.route }}</strong>
+                    </div>
+                    
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <div class="card bg-light">
+                                <div class="card-body">
+                                    <h5 class="card-title">Bus Information</h5>
+                                    <p class="mb-1"><strong>Route:</strong> {{ bus.route }}</p>
+                                    <p class="mb-1"><strong>Driver:</strong> {{ bus.driver_name }}</p>
+                                    <p class="mb-0"><strong>Phone:</strong> {{ bus.driver_phone }}</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card bg-light">
+                                <div class="card-body">
+                                    <h5 class="card-title">Current Coordinates</h5>
+                                    <p class="mb-1"><strong>Latitude:</strong> {{ bus.latitude }}</p>
+                                    <p class="mb-0"><strong>Longitude:</strong> {{ bus.longitude }}</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <form method="POST" id="locationForm">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="latitude" class="form-label">Latitude</label>
+                                    <div class="input-group">
+                                        <span class="input-group-text"><i class="fas fa-map-pin"></i></span>
+                                        <input type="text" class="form-control" id="latitude" name="latitude" value="{{ bus.latitude }}" required>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="longitude" class="form-label">Longitude</label>
+                                    <div class="input-group">
+                                        <span class="input-group-text"><i class="fas fa-map-pin"></i></span>
+                                        <input type="text" class="form-control" id="longitude" name="longitude" value="{{ bus.longitude }}" required>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="d-grid gap-2">
+                            <button type="button" class="btn btn-info mb-3" id="getCurrentLocation">
+                                <i class="fas fa-crosshairs mr-2"></i> Use Current Location
+                            </button>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save mr-2"></i> Update Location
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row">
+        <div class="col-md-8 offset-md-2">
+            <div class="card shadow-sm">
+                <div class="card-header bg-dark text-white">
+                    <h4 class="mb-0"><i class="fas fa-map mr-2"></i> Preview Location</h4>
+                </div>
+                <div class="card-body p-0">
+                    <div id="map" style="height: 300px; width: 100%; border-radius: 0 0 5px 5px;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let map;
+    let marker;
+    
+    function initMap() {
+        // Try to use the current bus location, or default to a central location
+        const lat = parseFloat('{{ bus.latitude|default(20.5937) }}');
+        const lng = parseFloat('{{ bus.longitude|default(78.9629) }}');
+        const busPosition = { lat, lng };
+        
+        // Initialize the map
+        map = new google.maps.Map(document.getElementById('map'), {
+            center: busPosition,
+            zoom: 15
+        });
+        
+        // Add a marker for the bus
+        marker = new google.maps.Marker({
+            position: busPosition,
+            map: map,
+            draggable: true,
+            title: '{{ bus.route }}',
+            icon: {
+                url: 'http://maps.google.com/mapfiles/ms/icons/blue-dot.png',
+                scaledSize: new google.maps.Size(40, 40)
+            }
+        });
+        
+        // Update the form when the marker is dragged
+        google.maps.event.addListener(marker, 'dragend', function() {
+            const position = marker.getPosition();
+            document.getElementById('latitude').value = position.lat();
+            document.getElementById('longitude').value = position.lng();
+        });
+        
+        // Update marker when the form changes
+        document.getElementById('latitude').addEventListener('change', updateMarker);
+        document.getElementById('longitude').addEventListener('change', updateMarker);
+    }
+    
+    function updateMarker() {
+        const lat = parseFloat(document.getElementById('latitude').value);
+        const lng = parseFloat(document.getElementById('longitude').value);
+        
+        if (!isNaN(lat) && !isNaN(lng)) {
+            const position = { lat, lng };
+            marker.setPosition(position);
+            map.setCenter(position);
+        }
+    }
+    
+    // Use current location button
+    document.getElementById('getCurrentLocation').addEventListener('click', function() {
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(function(position) {
+                const lat = position.coords.latitude;
+                const lng = position.coords.longitude;
+                
+                document.getElementById('latitude').value = lat;
+                document.getElementById('longitude').value = lng;
+                
+                const newPosition = { lat, lng };
+                marker.setPosition(newPosition);
+                map.setCenter(newPosition);
+            }, function(error) {
+                console.error('Error getting location:', error);
+                alert('Unable to get your current location. Please check your location permissions.');
+            }, {
+                enableHighAccuracy: true
+            });
+        } else {
+            alert('Geolocation is not supported by your browser.');
+        }
+    });
+</script>
+
+<!-- Load Google Maps API -->
+<script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyApq25cUgw1k5tyFJVI4Ffd49bhg116rkc&callback=initMap"></script>
+
+<!-- Add Font Awesome for icons -->
+<script src="https://kit.fontawesome.com/a076d05399.js" crossorigin="anonymous"></script>
+{% endblock %}
